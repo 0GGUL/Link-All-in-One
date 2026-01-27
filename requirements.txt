@@ -1,0 +1,8 @@
+streamlit
+yt-dlp
+openai-whisper
+youtube-transcript-api
+deep-translator
+shazamio
+pandas
+requests
