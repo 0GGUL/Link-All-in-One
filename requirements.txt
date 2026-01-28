@@ -6,3 +6,4 @@ deep-translator
 shazamio
 pandas
 requests
+pydub
