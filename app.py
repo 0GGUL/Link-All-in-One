@@ -290,7 +290,7 @@ with t1:
                 st.download_button("💾 받기", img_data, "thumb.jpg", "image/jpeg", type="primary")
 
 # ==========================================
-# [탭 2] 자막/번역
+# [탭 2] 자막/번역 (수정됨: 재시도 안내 문구 추가)
 # ==========================================
 with t2:
     st.markdown("#### 📝 자막 생성 및 번역")
@@ -331,7 +331,6 @@ with t2:
                         f = download_audio_for_ai(url_sub)
                         
                         if f:
-                            # 여기도 안전장치 추가
                             try:
                                 my_bar.progress(60, text="3. AI 모델(Whisper)을 준비 중입니다...")
                                 model = load_whisper_model(SELECTED_MODEL)
@@ -347,13 +346,19 @@ with t2:
                                 time.sleep(0.5)
                                 my_bar.empty() 
                                 st.success(f"✅ 분석 완료! (총 {int(elapsed_time)}초 소요)")
-                            except:
-                                st.error("AI 분석 중 오류가 발생했습니다.")
+                            except Exception as e:
+                                my_bar.empty()
+                                st.error(f"⚠️ 분석 중 오류가 발생했습니다: {str(e)}")
                             finally:
                                 if os.path.exists(f): os.remove(f)
                         else:
                             my_bar.empty()
-                            st.error("❌ 오디오를 다운로드할 수 없습니다. (차단되었거나 유효하지 않은 링크)")
+                            # [수정] 에러 메시지를 '재시도 안내'로 변경
+                            st.warning("⚠️ **연결이 지연되고 있습니다. '생성 시작' 버튼을 한 번 더 눌러주세요!**")
+                            st.caption("(유튜브 보안으로 인해 첫 시도는 차단될 수 있습니다. 다시 클릭하면 정상 작동합니다.)")
+
+    # [추가] 팁 메시지 (항상 보이도록 배치)
+    st.info("💡 **Tip:** 만약 '오디오 다운로드 실패'가 뜨면, **버튼을 다시 한 번 클릭**해 주세요. (서버 연결 갱신)")
 
     if st.session_state['sub_result']:
         data = st.session_state['sub_result']
@@ -402,11 +407,11 @@ with t2:
             st.text_area(f"📜 미리보기 ({view_mode})", value=final_data, height=500)
 
 # ==========================================
-# [탭 3] 키워드 분석 (로딩바 적용 & 가로 그래프 수정됨)
+# [탭 3] 키워드 분석 (AI 제거 -> 태그/자막 기반 초고속 모드)
 # ==========================================
 with t3:
-    st.markdown("#### 📊 영상 내용 분석")
-    st.caption("핵심 키워드와 요약 정보를 파악합니다.")
+    st.markdown("#### 📊 영상 태그 & 키워드 분석")
+    st.caption("유튜버가 등록한 **공식 태그**와 **자막**을 기반으로 빠르게 분석합니다. (AI 음성 분석 제외)")
     
     default_an = shared_url if shared_url else ""
     c_in, c_btn = st.columns([3, 1])
@@ -414,81 +419,84 @@ with t3:
     with c_btn:
         if st.button("분석 시작", type="primary", key="an_go"):
             if url_an:
-                # 1. [수정] 안내 문구 제거 및 타이머 시작
                 start_time = time.time()
                 
-                # 2. [수정] 로딩바 생성
-                progress_text = "분석을 준비하고 있습니다..."
-                my_bar = st.progress(0, text=progress_text)
+                # 로딩바 초기화
+                my_bar = st.progress(0, text="데이터를 조회하고 있습니다...")
                 
                 temp_data = []
+                video_tags = []
                 
-                # 단계 1: 공식 자막 탐색 (진행률 20%)
-                my_bar.progress(20, text="1. 공식 자막을 스캔 중입니다...")
+                # 1. 태그(메타데이터) 추출 (50%)
+                my_bar.progress(50, text="1. 공식 태그(해시태그) 수집 중...")
+                try:
+                    meta = get_video_info(url_an)
+                    video_tags = meta.get('tags', [])
+                except: pass
+
+                # 2. 공식 자막 추출 (80%) - 자막이 있으면 내용 분석까지 가능
+                my_bar.progress(80, text="2. 자막 데이터 확인 중...")
                 try:
                     vid_id = parse_qs(urlparse(url_an).query)['v'][0]
                     raw = YouTubeTranscriptApi.get_transcript(vid_id, languages=['ko', 'en'])
                     temp_data = [{'text':l['text']} for l in raw]
                 except: pass
                 
-                # 단계 2: AI 분석 (자막 없을 경우)
-                if not temp_data:
-                    # 진행률 40%
-                    my_bar.progress(40, text="2. 공식 자막이 없어 오디오를 추출합니다...")
-                    f = download_audio_for_ai(url_an)
-                    
-                    if f:
-                        try:
-                            # 진행률 60%
-                            my_bar.progress(60, text="3. AI 모델을 로딩 중입니다...")
-                            model = load_whisper_model(SELECTED_MODEL)
-                            
-                            # 진행률 80%
-                            my_bar.progress(80, text="4. AI가 내용을 정밀 분석 중입니다...")
-                            res = model.transcribe(f, fp16=False)
-                            temp_data = [{'text':s['text']} for s in res['segments']]
-                        except:
-                            st.error("AI 분석 중 오류가 발생했습니다.")
-                        finally:
-                            if os.path.exists(f): os.remove(f)
-                    else:
-                        st.error("오디오 추출 실패 (유효하지 않은 링크일 수 있습니다)")
-                
                 # 완료 처리
-                if temp_data:
-                    my_bar.progress(100, text="분석 완료!")
-                    time.sleep(0.5)
-                    my_bar.empty() # 로딩바 숨기기
-                    
-                    # 3. [수정] 최종 소요 시간 표시
-                    elapsed = int(time.time() - start_time)
+                my_bar.progress(100, text="완료!")
+                time.sleep(0.3)
+                my_bar.empty()
+                
+                # 결과 저장
+                st.session_state['analyze_result'] = temp_data
+                st.session_state['video_tags'] = video_tags
+                
+                elapsed = int(time.time() - start_time)
+                
+                if video_tags or temp_data:
                     st.success(f"✅ 분석 완료! (총 {elapsed}초 소요)")
-                    st.session_state['analyze_result'] = temp_data
                 else:
-                    my_bar.empty()
-                    if not st.session_state.get('analyze_result'):
-                        st.warning("분석할 텍스트를 찾지 못했습니다.")
+                    st.warning("⚠️ 분석할 데이터(태그 또는 자막)를 찾지 못했습니다.")
 
+    # === 결과 화면 출력 ===
+    
+    # 1. 업로더 공식 태그 (가장 중요)
+    if 'video_tags' in st.session_state and st.session_state['video_tags']:
+        with st.container(border=True):
+            st.markdown("#### 🏷️ 업로더 공식 태그 (Hidden Tags)")
+            st.caption("유튜버가 검색 노출을 위해 영상에 심어둔 핵심 키워드입니다.")
+            
+            tags_html = ""
+            for t in st.session_state['video_tags']:
+                tags_html += f"<span style='background-color:#f1f3f5; padding:6px 12px; border-radius:20px; margin-right:8px; margin-bottom:8px; display:inline-block; font-size:15px; font-weight:600; color:#333; border:1px solid #dee2e6;'>#{t}</span> "
+            st.markdown(tags_html, unsafe_allow_html=True)
+    
+    # 2. 내용 빈도수 분석 (자막이 있는 경우에만 표시)
     if st.session_state['analyze_result']:
         data = st.session_state['analyze_result']
         full_text = " ".join([d['text'] for d in data])
+        
         c1, c2 = st.columns(2)
         with c1:
             with st.container(border=True):
-                st.markdown("#### 🏆 Top 10 키워드")
+                st.markdown("#### 🏆 최다 언급 단어 (Top 10)")
+                st.caption("자막 내용을 바탕으로 분석했습니다.")
                 words = [w for w in full_text.split() if len(w) >= 2]
                 if words:
                     df = pd.DataFrame(Counter(words).most_common(10), columns=['단어', '빈도']).set_index('단어')
-                    # 4. [수정] 그래프를 가로로 변경 (horizontal=True)
                     st.bar_chart(df, color="#FF4B4B", horizontal=True)
         with c2:
             with st.container(border=True):
-                st.markdown("#### 🕵️‍♀️ 단어 검색")
-                q = st.text_input("찾고 싶은 단어", key="k_search")
+                st.markdown("#### 🕵️‍♀️ 대본 검색")
+                q = st.text_input("자막 내용 검색", key="k_search")
                 if q:
                     found = [d['text'] for d in data if q in d['text']]
                     st.success(f"총 {len(found)}번 발견!")
                     for text in found[:3]: st.markdown(f"- ...{text.replace(q, f'**{q}**')}...")
+    
+    elif 'video_tags' in st.session_state and st.session_state['video_tags']:
+        # 태그는 찾았는데 자막이 없는 경우 안내 메시지
+        st.info("ℹ️ 이 영상은 자막(CC)이 없어서 상세 내용 분석/검색은 건너뛰었습니다. (공식 태그만 표시됨)")
 
 # ==========================================
 # [탭 4] BGM 검색
