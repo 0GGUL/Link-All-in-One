@@ -197,7 +197,9 @@ with st.sidebar:
     st.info("**💡 지원 플랫폼**\nYouTube, Instagram, TikTok, Facebook 등 대부분의 영상 링크를 지원합니다.")
 
 # === [메인 헤더] ===
-st.title("Link All-in-One")
+# 변경 추천 (이모지를 넣으면 훨씬 생동감 있어 보입니다!)
+st.title("🔗 링크 올인원 (Link All-in-One)")
+st.write("링크 하나로 다운로드부터 자막 생성까지 한 번에!")
 st.markdown('<p class="sub-desc">링크 하나만 있으면 다운로드, 자막 생성, 번역, 분석, BGM 검색까지 한 번에 가능합니다.</p>', unsafe_allow_html=True)
 
 # 탭 구성
@@ -470,4 +472,5 @@ with t4:
                         for s in track['sections']:
                             if s['type']=='VIDEO' and 'youtubeurl' in s:
                                 st.markdown(f"[▶️ 유튜브에서 듣기]({s['youtubeurl']})")
+
         else: st.warning("음악 정보를 찾을 수 없습니다. (너무 짧거나 효과음일 수 있습니다.)")
