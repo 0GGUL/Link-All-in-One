@@ -24,37 +24,49 @@ st.set_page_config(
 # === [스타일링] 반응형 CSS ===
 st.markdown("""
 <style>
-    /* [수정됨] 화면 폭을 1200px로 늘려서 웹에서 더 시원하게 보이게 설정 */
+    /* 1. 메인 컨테이너 (PC에서 넓게 1400px) */
     .block-container {
-        max-width: 1200px !important; /* 기존 1000px -> 1200px로 변경 */
+        max-width: 1400px !important;
         margin: 0 auto !important;
         padding-top: 2rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-bottom: 3rem !important;
     }
     
+    /* 2. 제목 (H1) - 중앙 정렬 & 한 줄 유지 */
+    h1 { 
+        text-align: center !important; 
+        color: #111111; 
+        margin-bottom: 15px; 
+        font-weight: 900; 
+        font-size: calc(1.8rem + 1.5vw) !important; 
+        letter-spacing: -1px;
+        white-space: nowrap !important; 
+    }
+    
+    /* 3. 설명 문구 (.sub-desc) - 무조건 한 줄로! */
+    .sub-desc { 
+        text-align: center !important; 
+        color: #495057; 
+        font-size: 1.15rem; 
+        width: 100%; /* 화면 전체 폭 사용 */
+        max-width: none !important; /* 너비 제한 해제 (이게 문제였음) */
+        margin: 0 auto 40px auto; 
+        white-space: nowrap !important; /* 강제 한 줄 유지 */
+        overflow: hidden; /* 넘치면 깔끔하게 처리 */
+        text-overflow: ellipsis; 
+    }
+
+    /* 4. 기타 필수 설정 */
     html, body, [data-testid="stAppViewContainer"] {
         max-width: 100vw;
         overflow-x: hidden !important;
     }
-    div, span, p, h1, h2, h3, button, input {
+    div, span, p, button, input {
         word-break: break-word !important; 
-        overflow-wrap: break-word !important;
         white-space: normal !important;
     }
-    html, body, [class*="css"] { 
-        font-family: 'Pretendard', sans-serif; 
-        font-size: 16px; 
-        color: #212529; 
-    }
-    h1 { 
-        text-align: center; 
-        color: #111111; 
-        margin-bottom: 20px; 
-        font-weight: 900; 
-        font-size: calc(1.8rem + 1.5vw) !important;
-        letter-spacing: -1px;
-    }
+    
+    /* 탭 메뉴 */
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         justify-content: center; 
@@ -78,6 +90,8 @@ st.markdown("""
         border: 2px solid #FF4B4B;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
+    
+    /* 버튼 및 입력창 */
     .stButton > button { 
         width: 100%; 
         border-radius: 10px; 
@@ -201,7 +215,7 @@ st.title("🔗 링크 올인원 (Link All-in-One)")
 st.markdown('<p class="sub-desc">링크 하나만 있으면 다운로드, 자막 생성, 번역, 분석, BGM 검색까지 한 번에 가능합니다.</p>', unsafe_allow_html=True)
 
 # 탭 구성
-t1, t2, t3, t4 = st.tabs([" 📥 미디어 다운 ", " 📝 자막/번역 ", " 📊 키워드 분석 ", " 🎵 BGM 검색 "])
+t1, t2, t3, t4 = st.tabs([" 📥 미디어 다운로더 ", " 📝 자막/번역 ", " 📊 키워드 분석 ", " 🎵 BGM 검색 "])
 
 # ==========================================
 # [탭 1] 미디어 다운로더
@@ -276,7 +290,7 @@ with t1:
                 st.download_button("💾 받기", img_data, "thumb.jpg", "image/jpeg", type="primary")
 
 # ==========================================
-# [탭 2] 자막/번역 (수정됨: 에러 처리 강화)
+# [탭 2] 자막/번역
 # ==========================================
 with t2:
     st.markdown("#### 📝 자막 생성 및 번역")
@@ -317,13 +331,12 @@ with t2:
                         f = download_audio_for_ai(url_sub)
                         
                         if f:
+                            # 여기도 안전장치 추가
                             try:
                                 my_bar.progress(60, text="3. AI 모델(Whisper)을 준비 중입니다...")
                                 model = load_whisper_model(SELECTED_MODEL)
                                 
                                 my_bar.progress(80, text="4. 영상을 분석하고 있습니다 (잠시만 기다려주세요)...")
-                                
-                                # [핵심 수정] 여기서 에러가 나면 멈추지 않고 예외 처리
                                 res = model.transcribe(f, fp16=False)
                                 
                                 st.session_state['sub_result'] = [{'start':s['start'], 'duration':s['end']-s['start'], 'text':s['text']} for s in res['segments']]
@@ -334,13 +347,9 @@ with t2:
                                 time.sleep(0.5)
                                 my_bar.empty() 
                                 st.success(f"✅ 분석 완료! (총 {int(elapsed_time)}초 소요)")
-                                
-                            except Exception as e:
-                                my_bar.empty()
-                                st.error(f"⚠️ 분석 중 오류가 발생했습니다: {str(e)}")
-                                st.warning("오디오 파일이 손상되었거나 내용이 비어있을 수 있습니다.")
+                            except:
+                                st.error("AI 분석 중 오류가 발생했습니다.")
                             finally:
-                                # 작업 끝난 파일 삭제
                                 if os.path.exists(f): os.remove(f)
                         else:
                             my_bar.empty()
@@ -393,7 +402,7 @@ with t2:
             st.text_area(f"📜 미리보기 ({view_mode})", value=final_data, height=500)
 
 # ==========================================
-# [탭 3] 키워드 분석
+# [탭 3] 키워드 분석 (로딩바 적용 & 가로 그래프 수정됨)
 # ==========================================
 with t3:
     st.markdown("#### 📊 영상 내용 분석")
@@ -405,32 +414,59 @@ with t3:
     with c_btn:
         if st.button("분석 시작", type="primary", key="an_go"):
             if url_an:
-                st.info("⏳ 약 30~60초 소요")
+                # 1. [수정] 안내 문구 제거 및 타이머 시작
                 start_time = time.time()
                 
-                with st.spinner("분석 중..."):
-                    temp_data = []
-                    try:
-                        vid_id = parse_qs(urlparse(url_an).query)['v'][0]
-                        raw = YouTubeTranscriptApi.get_transcript(vid_id, languages=['ko', 'en'])
-                        temp_data = [{'text':l['text']} for l in raw]
-                    except:
-                        f = download_audio_for_ai(url_an)
-                        if f:
-                            # 여기도 안전장치 추가
-                            try:
-                                model = load_whisper_model(SELECTED_MODEL)
-                                res = model.transcribe(f, fp16=False)
-                                temp_data = [{'text':s['text']} for s in res['segments']]
-                            except:
-                                st.error("AI 분석 중 오류가 발생했습니다.")
-                            finally:
-                                if os.path.exists(f): os.remove(f)
+                # 2. [수정] 로딩바 생성
+                progress_text = "분석을 준비하고 있습니다..."
+                my_bar = st.progress(0, text=progress_text)
+                
+                temp_data = []
+                
+                # 단계 1: 공식 자막 탐색 (진행률 20%)
+                my_bar.progress(20, text="1. 공식 자막을 스캔 중입니다...")
+                try:
+                    vid_id = parse_qs(urlparse(url_an).query)['v'][0]
+                    raw = YouTubeTranscriptApi.get_transcript(vid_id, languages=['ko', 'en'])
+                    temp_data = [{'text':l['text']} for l in raw]
+                except: pass
+                
+                # 단계 2: AI 분석 (자막 없을 경우)
+                if not temp_data:
+                    # 진행률 40%
+                    my_bar.progress(40, text="2. 공식 자막이 없어 오디오를 추출합니다...")
+                    f = download_audio_for_ai(url_an)
                     
-                    if temp_data:
-                        st.session_state['analyze_result'] = temp_data
-                        st.success("완료!")
+                    if f:
+                        try:
+                            # 진행률 60%
+                            my_bar.progress(60, text="3. AI 모델을 로딩 중입니다...")
+                            model = load_whisper_model(SELECTED_MODEL)
+                            
+                            # 진행률 80%
+                            my_bar.progress(80, text="4. AI가 내용을 정밀 분석 중입니다...")
+                            res = model.transcribe(f, fp16=False)
+                            temp_data = [{'text':s['text']} for s in res['segments']]
+                        except:
+                            st.error("AI 분석 중 오류가 발생했습니다.")
+                        finally:
+                            if os.path.exists(f): os.remove(f)
                     else:
+                        st.error("오디오 추출 실패 (유효하지 않은 링크일 수 있습니다)")
+                
+                # 완료 처리
+                if temp_data:
+                    my_bar.progress(100, text="분석 완료!")
+                    time.sleep(0.5)
+                    my_bar.empty() # 로딩바 숨기기
+                    
+                    # 3. [수정] 최종 소요 시간 표시
+                    elapsed = int(time.time() - start_time)
+                    st.success(f"✅ 분석 완료! (총 {elapsed}초 소요)")
+                    st.session_state['analyze_result'] = temp_data
+                else:
+                    my_bar.empty()
+                    if not st.session_state.get('analyze_result'):
                         st.warning("분석할 텍스트를 찾지 못했습니다.")
 
     if st.session_state['analyze_result']:
@@ -443,7 +479,8 @@ with t3:
                 words = [w for w in full_text.split() if len(w) >= 2]
                 if words:
                     df = pd.DataFrame(Counter(words).most_common(10), columns=['단어', '빈도']).set_index('단어')
-                    st.bar_chart(df, color="#FF4B4B")
+                    # 4. [수정] 그래프를 가로로 변경 (horizontal=True)
+                    st.bar_chart(df, color="#FF4B4B", horizontal=True)
         with c2:
             with st.container(border=True):
                 st.markdown("#### 🕵️‍♀️ 단어 검색")
