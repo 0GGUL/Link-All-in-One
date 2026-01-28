@@ -7,3 +7,4 @@ shazamio
 pandas
 requests
 pydub
+pyaudioop
