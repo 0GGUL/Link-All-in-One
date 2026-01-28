@@ -152,7 +152,7 @@ def download_audio_for_ai(url):
             try: os.remove(f)
             except: pass
     
-    # [수정] 다운로드 옵션 강화
+    # [수정] 강력한 차단 우회 옵션 적용
     ydl_opts = {
         'format': 'bestaudio/best', 
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}], 
@@ -160,24 +160,36 @@ def download_audio_for_ai(url):
         'quiet': True, 
         'no_warnings': True, 
         'ignoreerrors': True,
-        # 봇 차단 회피용 헤더
-        'http_headers': {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        'nocheckcertificate': True, # SSL 인증서 오류 무시
+        'extract_flat': False,
+        'source_address': '0.0.0.0', # IPv4 강제 사용 (IPv6 차단 방지)
+        
+        # 봇 탐지 회피를 위한 최신 헤더 위장
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9,ko;q=0.8',
+            'Sec-Fetch-Mode': 'navigate',
+        }
     }
     
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([url])
-        target_file = filename + ".mp3"
-        
-        # [중요] 파일이 진짜 존재하는지, 그리고 텅 빈 파일(0 bytes)은 아닌지 체크
-        if os.path.exists(target_file):
-            file_size = os.path.getsize(target_file)
-            if file_size > 1000: # 최소 1KB 이상이어야 정상
+    # 내부적으로 3번까지 재시도
+    for attempt in range(3):
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([url])
+            target_file = filename + ".mp3"
+            
+            # 파일이 정상적으로 생성되었는지 확인
+            if os.path.exists(target_file) and os.path.getsize(target_file) > 1024: 
                 return target_file
-            else:
-                return None # 파일은 있는데 너무 작으면(오류 파일) 실패 처리
-        else: 
-            return None
-    except: return None
+            
+            # 실패 시 잠시 대기 후 재시도
+            time.sleep(1)
+        except:
+            time.sleep(1)
+            continue
+            
+    return None
 
 @st.cache_resource
 def load_whisper_model(model_size): return whisper.load_model(model_size)
