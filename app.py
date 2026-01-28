@@ -40,7 +40,7 @@ st.markdown("""
     .sub-desc { 
         text-align: center; 
         color: #495057; 
-        font-size: 1.4rem; 
+        font-size: 1.4rem;
         margin-bottom: 50px; 
         font-weight: 600; 
     }
@@ -199,7 +199,6 @@ with st.sidebar:
 # === [메인 헤더] ===
 # 변경 추천 (이모지를 넣으면 훨씬 생동감 있어 보입니다!)
 st.title("🔗 링크 올인원 (Link All-in-One)")
-st.write("링크 하나로 다운로드부터 자막 생성까지 한 번에!")
 st.markdown('<p class="sub-desc">링크 하나만 있으면 다운로드, 자막 생성, 번역, 분석, BGM 검색까지 한 번에 가능합니다.</p>', unsafe_allow_html=True)
 
 # 탭 구성
@@ -474,3 +473,4 @@ with t4:
                                 st.markdown(f"[▶️ 유튜브에서 듣기]({s['youtubeurl']})")
 
         else: st.warning("음악 정보를 찾을 수 없습니다. (너무 짧거나 효과음일 수 있습니다.)")
+
