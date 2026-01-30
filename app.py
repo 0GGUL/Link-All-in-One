@@ -152,43 +152,46 @@ def download_audio_for_ai(url):
             try: os.remove(f)
             except: pass
     
-    # 2. [핵심 수정] 안드로이드 모바일 앱으로 위장 (차단 우회 확률 99%)
+    # 2. [핵심] 쿠키 파일이 있으면 사용 (서버 차단 우회용)
+    cookie_file = "cookies.txt"
+    use_cookie = os.path.exists(cookie_file)
+    
     ydl_opts = {
         'format': 'bestaudio/best', 
         'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}], 
         'outtmpl': filename, 
-        'quiet': True, 
-        'no_warnings': True, 
-        'ignoreerrors': True,
-        'noplaylist': True,
-        'nocheckcertificate': True, 
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
         
-        # [중요] 유튜브에게 "나 폰이야!" 라고 거짓말하는 설정
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        # [중요] 쿠키 파일을 yt-dlp에 적용
+        'cookiefile': cookie_file if use_cookie else None,
         
-        # 추가 헤더 위장
+        # 추가적인 브라우저 위장
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
         }
     }
     
-    # 3. 다운로드 시도 (실패 시 3번 재시도)
-    for attempt in range(1, 4):
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([url])
-            target_file = filename + ".mp3"
-            
-            # 파일 생성 확인 (최소 1KB 이상)
-            if os.path.exists(target_file) and os.path.getsize(target_file) > 1024: 
-                return target_file
-            
-            time.sleep(1) # 실패 시 1초 대기
-        except:
-            time.sleep(1)
-            continue
-            
-    return None
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl: ydl.download([url])
+        
+        target_file = filename + ".mp3"
+        
+        # 파일이 정상적으로 생성되었는지 확인
+        if os.path.exists(target_file) and os.path.getsize(target_file) > 1024: 
+            return target_file
+        else:
+            if not use_cookie:
+                st.error("❌ 'cookies.txt' 파일이 없습니다. GitHub에 파일을 올려주세요.")
+            else:
+                st.error("❌ 쿠키를 적용했으나 다운로드에 실패했습니다. (쿠키가 만료되었거나 FFmpeg 문제일 수 있습니다.)")
+            return None
+
+    except Exception as e:
+        st.error(f"❌ 오류 발생: {str(e)}")
+        return None
 
 @st.cache_resource
 def load_whisper_model(model_size): return whisper.load_model(model_size)
@@ -301,79 +304,149 @@ with t1:
                 st.download_button("💾 받기", img_data, "thumb.jpg", "image/jpeg", type="primary")
 
 # ==========================================
-# [탭 2] 자막/번역 (수정됨: 재시도 안내 문구 추가)
+# [탭 2] 자막/번역 (수정됨: 내부 다운로더 이용 안내)
 # ==========================================
 with t2:
     st.markdown("#### 📝 자막 생성 및 번역")
-    st.caption("AI가 영상을 분석하여 자막을 생성합니다. (시간이 조금 걸릴 수 있습니다)")
+    st.caption("AI가 영상/음성 파일을 분석하여 자막을 생성합니다.")
     
-    default_sub = shared_url if shared_url else ""
-    with st.container(border=True):
+    # 1. 입력 방식 선택
+    input_type = st.radio("작업 방식 선택", ("📂 파일 업로드 (추천)", "🔗 영상 링크 (불안정)"), horizontal=True, label_visibility="collapsed")
+    
+    st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True) 
+
+    # === A. 파일 업로드 모드 (메인) ===
+    if input_type == "📂 파일 업로드 (추천)":
+        # [수정] 외부 사이트 대신 '내부 탭 1' 이용 안내로 변경
+        st.markdown("""
+        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+            <p style="margin: 0 0 10px 0; font-weight: bold; color: #333;">💡 영상 파일이 없으신가요?</p>
+            <ul style="margin: 0 0 0 20px; padding: 0; color: #555; font-size: 14px;">
+                <li>맨 왼쪽 <b>[📥 미디어 다운로더]</b> 탭에서 영상이나 오디오를 다운받으세요.</li>
+                <li>다운받은 파일을 여기에 다시 업로드하면 바로 분석이 시작됩니다!</li>
+                <li>(PC에서는 다운로드와 동시에 파일이 폴더에 저장됩니다)</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        uploaded_file = st.file_uploader("영상/음성 파일 업로드 (MP4, MP3, WAV)", type=["mp4", "mp3", "wav", "m4a"])
+        
+        if st.button("🚀 생성 시작", type="primary", key="file_go"):
+            if uploaded_file:
+                st.session_state['sub_result'] = []
+                start_time = time.time()
+                
+                # 로딩바
+                progress_text = "파일을 서버로 전송하고 있습니다..."
+                my_bar = st.progress(0, text=progress_text)
+                
+                try:
+                    # 1. 업로드된 파일을 임시 저장
+                    temp_filename = f"temp_upload_{uploaded_file.name}"
+                    with open(temp_filename, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    
+                    # 2. AI 모델 로딩
+                    my_bar.progress(30, text="AI 모델(Whisper)을 불러오는 중입니다...")
+                    model = load_whisper_model(SELECTED_MODEL)
+                    
+                    # 3. 분석 시작
+                    my_bar.progress(50, text="AI가 내용을 받아적고 있습니다 (잠시만 기다려주세요)...")
+                    res = model.transcribe(temp_filename, fp16=False)
+                    
+                    st.session_state['sub_result'] = [{'start':s['start'], 'duration':s['end']-s['start'], 'text':s['text']} for s in res['segments']]
+                    
+                    # 청소
+                    if os.path.exists(temp_filename): os.remove(temp_filename)
+                    
+                    # 완료
+                    my_bar.progress(100, text="완료!")
+                    time.sleep(0.5)
+                    my_bar.empty()
+                    
+                    elapsed = int(time.time() - start_time)
+                    st.success(f"✅ 자막 생성 완료! (총 {elapsed}초 소요)")
+                    
+                except Exception as e:
+                    my_bar.empty()
+                    st.error(f"오류 발생: {str(e)}")
+            else:
+                st.warning("먼저 파일을 업로드해주세요.")
+
+    # === B. 링크 입력 모드 (보조) ===
+    else:
+        st.warning("⚠️ **주의:** 보안 정책으로 인해 서버에서 직접 다운로드가 차단될 수 있습니다. 실패 시 '파일 업로드'를 이용해주세요.")
+        
+        default_sub = shared_url if shared_url else ""
         c_in, c_btn = st.columns([3, 1])
         with c_in: 
-            url_sub = st.text_input("자막 링크", value=default_sub, placeholder="🔗 링크를 입력하세요", label_visibility="collapsed", key="sub_url")
+            url_sub = st.text_input("영상 링크", value=default_sub, placeholder="영상 링크 입력 (YouTube, Instagram 등)", label_visibility="collapsed", key="sub_url")
         with c_btn:
-            if st.button("🚀 생성 시작", type="primary", key="sub_go"):
+            if st.button("🚀 생성 시작", type="primary", key="link_go"):
                 if url_sub:
                     st.session_state['sub_result'] = []
-                    
                     start_time = time.time()
-                    progress_text = "작업을 준비하고 있습니다..."
-                    my_bar = st.progress(0, text=progress_text)
+                    my_bar = st.progress(0, text="작업 시작...")
                     
                     found = False
                     
-                    # 1단계: 공식 자막
-                    my_bar.progress(20, text="1. 공식 자막을 검색하고 있습니다...")
+                    # 1. 공식 자막 시도
+                    my_bar.progress(20, text="1. 공식 자막 검색 중...")
                     try:
                         vid_id = parse_qs(urlparse(url_sub).query)['v'][0]
                         raw = YouTubeTranscriptApi.get_transcript(vid_id, languages=['ko', 'en'])
                         st.session_state['sub_result'] = [{'start':l['start'], 'duration':l.get('duration',3.0), 'text':l['text']} for l in raw]
                         found = True
-                        my_bar.progress(100, text="공식 자막을 찾았습니다!")
+                        my_bar.progress(100, text="완료!")
                         time.sleep(0.5)
                         my_bar.empty()
-                        st.success(f"✅ 완료!")
+                        st.success("✅ 공식 자막을 가져왔습니다!")
                     except: pass
                     
-                    # 2단계: AI 분석
+                    # 2. AI 분석 시도
                     if not found:
-                        my_bar.progress(40, text="2. 오디오를 다운로드 중입니다...")
+                        my_bar.progress(40, text="2. 오디오 다운로드 시도 중...")
                         f = download_audio_for_ai(url_sub)
                         
                         if f:
                             try:
-                                my_bar.progress(60, text="3. AI 모델(Whisper)을 준비 중입니다...")
+                                my_bar.progress(60, text="3. AI 모델 로딩 중...")
                                 model = load_whisper_model(SELECTED_MODEL)
                                 
-                                my_bar.progress(80, text="4. 영상을 분석하고 있습니다 (잠시만 기다려주세요)...")
+                                my_bar.progress(80, text="4. 정밀 분석 중...")
                                 res = model.transcribe(f, fp16=False)
                                 
                                 st.session_state['sub_result'] = [{'start':s['start'], 'duration':s['end']-s['start'], 'text':s['text']} for s in res['segments']]
                                 
                                 my_bar.progress(100, text="완료!")
-                                end_time = time.time()
-                                elapsed_time = end_time - start_time
                                 time.sleep(0.5)
-                                my_bar.empty() 
-                                st.success(f"✅ 분석 완료! (총 {int(elapsed_time)}초 소요)")
-                            except Exception as e:
                                 my_bar.empty()
-                                st.error(f"⚠️ 분석 중 오류가 발생했습니다: {str(e)}")
+                                elapsed = int(time.time() - start_time)
+                                st.success(f"✅ 분석 완료! ({elapsed}초 소요)")
+                            except Exception as e:
+                                st.error(f"오류: {str(e)}")
                             finally:
                                 if os.path.exists(f): os.remove(f)
                         else:
+                            # 실패 시 안내 (내부 탭 이용 유도)
                             my_bar.empty()
-                            # [수정] 에러 메시지를 '재시도 안내'로 변경
-                            st.warning("⚠️ **연결이 지연되고 있습니다. '생성 시작' 버튼을 한 번 더 눌러주세요!**")
-                            st.caption("(유튜브 보안으로 인해 첫 시도는 차단될 수 있습니다. 다시 클릭하면 정상 작동합니다.)")
+                            st.error("❌ 서버 보안으로 인해 직접 다운로드가 차단되었습니다.")
+                            
+                            st.markdown("""
+                            <div style='background-color: #fff3cd; padding: 15px; border-radius: 10px; border: 1px solid #ffeeba; margin-top: 10px;'>
+                                <h4 style='color: #856404; margin-bottom: 10px;'>😓 다운로드에 실패했나요?</h4>
+                                <ul style='margin: 0 0 0 20px; padding: 0; color: #856404; font-size: 14px;'>
+                                    <li>이 탭(자막/번역)에서는 서버 보안상 다운로드가 막힐 수 있습니다.</li>
+                                    <li><b>[📂 파일 업로드]</b> 방식을 선택한 뒤, <b>[📥 미디어 다운로더]</b> 탭에서 받은 파일을 올려주세요!</li>
+                                    <li>그쪽 탭은 다운로드가 더 잘 됩니다. 👍</li>
+                                </ul>
+                            </div>
+                            """, unsafe_allow_html=True)
 
-    # [추가] 팁 메시지 (항상 보이도록 배치)
-    st.info("💡 **Tip:** 만약 '오디오 다운로드 실패'가 뜨면, **버튼을 다시 한 번 클릭**해 주세요. (서버 연결 갱신)")
-
+    # === 공통 결과 화면 ===
     if st.session_state['sub_result']:
         data = st.session_state['sub_result']
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<hr style='margin: 30px 0;'>", unsafe_allow_html=True)
         
         with st.container(border=True):
             col_tool1, col_tool2, col_tool3 = st.columns([1, 2, 1])
