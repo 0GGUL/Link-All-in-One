@@ -105,6 +105,14 @@ st.markdown("""
         min-height: 48px;
         font-size: 16px;
     }
+
+    /* [수정됨] 사이드바 열기 버튼(화살표) 크기 키우기 */
+    [data-testid="stSidebarCollapsedControl"] {
+        transform: scale(2) !important;
+        color: #FF4B4B !important;
+        margin-left: 10px;
+        margin-top: 5px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
