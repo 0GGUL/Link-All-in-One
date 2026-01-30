@@ -106,12 +106,20 @@ st.markdown("""
         font-size: 16px;
     }
 
-    /* [수정됨] 사이드바 열기 버튼(화살표) 크기 키우기 */
+    /* [수정됨] 사이드바 열기 버튼(화살표) 강제 스타일링 */
     [data-testid="stSidebarCollapsedControl"] {
-        transform: scale(2) !important;
-        color: #FF4B4B !important;
-        margin-left: 10px;
-        margin-top: 5px;
+        transform: scale(2.5) !important; /* 크기 2.5배 확대 */
+        transform-origin: top left !important; /* 왼쪽 위 기준 확대 */
+        left: 15px !important; /* 왼쪽 여백 확보 */
+        top: 10px !important; /* 위쪽 여백 확보 */
+        z-index: 999999 !important; /* 맨 앞으로 가져오기 */
+    }
+    
+    /* 화살표 아이콘 색상 강제 변경 (SVG 채우기) */
+    [data-testid="stSidebarCollapsedControl"] svg {
+        fill: #FF4B4B !important;
+        stroke: #FF4B4B !important;
+        stroke-width: 1px !important;
     }
 </style>
 """, unsafe_allow_html=True)
