@@ -247,77 +247,90 @@ st.markdown('<p class="sub-desc">링크 하나만 있으면 다운로드, 자막
 # 탭 구성
 t1, t2, t3, t4 = st.tabs([" 📥 미디어 다운로더 ", " 📝 자막/번역 ", " 📊 키워드 분석 ", " 🎵 BGM 검색 "])
 
+from urllib.parse import quote # URL 인코딩용 (상단 임포트에 없으면 추가 필요하지만, 기본 내장이라 보통 괜찮음)
+
 # ==========================================
-# [탭 1] 미디어 다운로더
+# [탭 1] 미디어 다운로더 (최종: 진짜 무료 고화질 서버)
 # ==========================================
 with t1:
-    st.markdown("#### 📥 미디어 다운로더")
-    st.caption("영상(MP4), 오디오(MP3), 썸네일(JPG)을 각각 원본 화질로 추출하여 저장합니다.")
+    st.markdown("#### 📥 미디어 다운로더 (통합 허브)")
+    st.caption("유료 결제 없이 **고화질(1080p+)** 다운로드가 가능한 서버들만 엄선했습니다.")
     
+    # 통합 링크 가져오기
     default_dl = shared_url if shared_url else ""
-    c_in, c_btn = st.columns([3, 1])
-    with c_in: url_dl = st.text_input("다운로드 링크", value=default_dl, placeholder="영상 링크를 붙여넣으세요", label_visibility="collapsed", key="dl_url")
-    with c_btn: 
-        if st.button("🔍 검색", key="dl_search", type="primary"):
-            if url_dl:
-                with st.spinner("링크 정보를 분석하고 있습니다..."):
-                    try: st.session_state['dl_info'] = get_video_info(url_dl)
-                    except: st.error("올바른 링크인지 확인해주세요.")
+    
+    # 1. 링크 입력
+    c_url, c_btn = st.columns([3, 1])
+    with c_url:
+        url_input = st.text_input("다운로드할 링크", value=default_dl, placeholder="YouTube, Instagram, TikTok 링크", key="dl_input")
+    with c_btn:
+        st.markdown("<div style='margin-top: 29px;'></div>", unsafe_allow_html=True)
+        st.button("🔗 확인", type="secondary", disabled=True)
 
-    if st.session_state['dl_info']:
-        info = st.session_state['dl_info']
+    # 2. 썸네일 미리보기 & 복사 기능
+    if url_input:
+        with st.expander("📺 썸네일 확인 & 링크 복사 (클릭)", expanded=True):
+            try:
+                opts = {'quiet': True, 'skip_download': True}
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(url_input, download=False)
+                    if 'thumbnail' in info:
+                        c_img, c_info = st.columns([1, 2])
+                        with c_img:
+                            st.image(info['thumbnail'], use_container_width=True)
+                            try:
+                                img_data = requests.get(info['thumbnail']).content
+                                st.download_button("🖼️ 썸네일 다운로드", img_data, "thumbnail.jpg", "image/jpeg", use_container_width=True)
+                            except: pass
+                        with c_info:
+                            st.markdown(f"**제목:** {info.get('title', '제목 없음')}")
+                            st.success("✅ 링크 확인 완료!")
+                            
+                            # 링크 복사 도우미
+                            st.caption("👇 오른쪽 끝에 마우스를 올리면 **복사 버튼**이 나타납니다.")
+                            st.code(url_input, language="text")
+            except:
+                st.warning("⚠️ 썸네일 로딩 실패 (링크는 정상일 수 있습니다)")
+
+    st.divider()
+
+    # 3. 다운로드 서버 (진짜 무료만 남김)
+    st.markdown("##### 🚀 다운로드 서버 선택 (1080p 무료)")
+    st.caption("위에서 **링크를 복사**한 뒤, 아래 사이트 중 하나에 접속해서 **붙여넣기** 하세요.")
+    
+    col_s1, col_s2, col_s3 = st.columns(3)
+    
+    # [서버 1] Loader.to (끝판왕)
+    with col_s1:
         with st.container(border=True):
-            ci1, ci2 = st.columns([1, 2])
-            with ci1: st.image(info.get('thumbnail'), use_container_width=True)
-            with ci2:
-                st.subheader(info.get('title', '제목 없음'))
-                st.markdown(f"**채널:** {info.get('uploader')} | **조회수:** {info.get('view_count', 0):,}회")
+            st.markdown("###### 🟡 서버 1 (4K/8K)")
+            st.markdown("**Loader.to**")
+            st.caption("속도는 느리지만 화질은 최고")
+            st.link_button("🚀 사이트 열기", "https://loader.to/", type="primary", use_container_width=True)
 
-        st.divider()
+    # [서버 2] Publer (깔끔)
+    with col_s2:
+        with st.container(border=True):
+            st.markdown("###### 🟢 서버 2 (깔끔)")
+            st.markdown("**Publer**")
+            st.caption("광고 없고 1080p 지원 (강추)")
+            st.link_button("🚀 사이트 열기", "https://publer.io/tools/media-downloader", type="primary", use_container_width=True)
 
-        col1, col2, col3 = st.columns(3)
+    # [서버 3] SaveFrom (SNS용)
+    with col_s3:
+        with st.container(border=True):
+            st.markdown("###### 🔵 서버 3 (SNS용)")
+            st.markdown("**SaveFrom**")
+            st.caption("인스타/틱톡/720p용")
+            st.link_button("🚀 사이트 열기", "https://ko.savefrom.net/", type="primary", use_container_width=True)
 
-        # 영상
-        with col1:
-            with st.container(border=True):
-                st.markdown("##### 🎬 영상")
-                is_yt = 'youtube' in info.get('extractor', '').lower()
-                res_key = "best"
-                if is_yt:
-                    res = st.selectbox("화질 선택", ("최고화질", "1080p", "720p"), label_visibility="collapsed")
-                    res_key = {"최고화질":"best", "1080p":"1080", "720p":"720"}[res]
-                else:
-                    st.info("원본 화질")
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("영상 저장", key="btn_vid_ex"):
-                    with st.spinner("다운로드 중..."):
-                        f = download_video_file(info['webpage_url'], res_key)
-                        if f:
-                            with open(f, "rb") as file:
-                                st.download_button("💾 받기", file, "video.mp4", "video/mp4", type="primary")
-
-        # 오디오
-        with col2:
-            with st.container(border=True):
-                st.markdown("##### 🎵 오디오")
-                st.markdown("<div style='height: 42px'></div>", unsafe_allow_html=True)
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("오디오 저장", key="btn_aud_ex"):
-                    with st.spinner("변환 중..."):
-                        f = download_audio_for_ai(info['webpage_url'])
-                        if f:
-                            with open(f, "rb") as file:
-                                st.download_button("💾 받기", file, "audio.mp3", "audio/mpeg", type="primary")
-
-        # 썸네일
-        with col3:
-            with st.container(border=True):
-                st.markdown("##### 🖼️ 썸네일")
-                st.image(info.get('thumbnail'), use_container_width=True)
-                st.markdown("<div style='height: 10px'></div>", unsafe_allow_html=True)
-                img_data = requests.get(info.get('thumbnail')).content
-                st.download_button("💾 받기", img_data, "thumb.jpg", "image/jpeg", type="primary")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.info("""
+    **💡 서버별 특징:**
+    * **🟡 Loader.to:** **1080p, 4K, 8K**까지 다 됩니다. (변환 시간이 좀 걸립니다.)
+    * **🟢 Publer:** 광고가 거의 없고 아주 **깔끔하게 1080p**를 받을 수 있습니다.
+    * **🔵 SaveFrom:** 유튜브는 화질이 낮지만, **인스타/틱톡**은 여기가 제일 빠릅니다.
+    """)
 
 # ==========================================
 # [탭 2] 자막/번역 (수정됨: 내부 다운로더 이용 안내)
